@@ -1,55 +1,65 @@
 const express = require('express');
-const contactsService = require('../../models/contacts.js');
+// const contactsService = require('../../models/contacts.js');
 const HttpError = require('../../helpers/Http.Error.js');
 const router = express.Router();
-const contactAddSchema = require('../../schemas/contact-schemas.js');
+const { contactAddSchema } = require('../../schemas/contact-schemas.js');
 const missingFields = require('../../helpers/misingFilds.js');
+const Contact = require('../../models/contacts.js');
+const isValid = require('../../helpers/isValid.js');
+const {
+  contactUpdateFavoriteSchema,
+} = require('../../schemas/contact-schemas.js');
 
 router.get('/', async (req, res, next) => {
   try {
-    const result = await contactsService.listContacts();
+    const result = await Contact.find();
+
     res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', isValid, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await contactsService.getContactById(id);
+
+    const result = await Contact.findById(id);
 
     if (!result) {
-      return res.status(404).json({
-        message: 'Not found',
-      });
+      // return res.status(404).json({
+      //   message: 'Not found',
+      // });
+      throw HttpError(404, 'Not Found');
     }
     res.status(200).json(result);
   } catch (error) {
+    console.error(error);
     next(error);
   }
 });
 
 router.post('/', async (req, res, next) => {
   try {
-    const { name, email, phone } = req.body;
-    const contactData = { name, email, phone };
+    const { name, email, phone, favorite } = req.body;
+    const contactData = { name, email, phone, favorite };
     const { error } = contactAddSchema.validate(contactData);
 
-    missingFields(req, res, { name, email, phone });
+    missingFields(req, res, { name, email, phone, favorite });
 
     if (error) {
-      throw HttpError(404, error.message);
+      // throw HttpError(404, error.message);
+      return res.status(404).json(error.message);
     }
 
-    const result = await contactsService.addContact(name, email, phone);
+    const result = await Contact.create(contactData);
     res.status(201).json(result);
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', isValid, async (req, res, next) => {
   try {
     const { name, email, phone } = req.body;
     const contactData = { name, email, phone };
@@ -58,11 +68,13 @@ router.put('/:id', async (req, res, next) => {
     missingFields(req, res, { name, email, phone });
 
     if (error) {
-      throw HttpError(404, error.message);
+      // throw HttpError(404, error.message);
+
+      return res.status(404).json(error.message);
     }
 
     const { id } = req.params;
-    const result = await contactsService.updateContact(id, req.body);
+    const result = await Contact.findByIdAndUpdate(id, req.body, { new: true });
 
     if (!result) {
       return res.status(404).json({
@@ -75,10 +87,10 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', isValid, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await contactsService.removeContact(id);
+    const result = await Contact.findByIdAndDelete(id);
 
     if (!result) {
       return res.status(404).json({
@@ -87,6 +99,34 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     res.status(200).json({ message: 'contact deleted' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id/favorite', isValid, async (req, res, next) => {
+  try {
+    const { favorite } = req.body;
+    const contactData = { favorite };
+    const { error } = contactUpdateFavoriteSchema.validate(contactData);
+
+    const { id } = req.params;
+    const contact = await Contact.findById(id);
+
+    if (error) {
+      return res.status(404).json(error.message);
+    }
+
+    if (!contact) {
+      return res.status(404).json({
+        message: 'Not found',
+      });
+    }
+
+    contact.favorite = favorite;
+    await contact.save();
+
+    res.status(200).json(contact);
   } catch (error) {
     next(error);
   }
