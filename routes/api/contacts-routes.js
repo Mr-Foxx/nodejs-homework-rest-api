@@ -9,10 +9,21 @@ const isValid = require('../../helpers/isValid.js');
 const {
   contactUpdateFavoriteSchema,
 } = require('../../schemas/contact-schemas.js');
+const { authenticate } = require('../../helpers/autenticate.js');
+
+router.use(authenticate);
 
 router.get('/', async (req, res, next) => {
   try {
-    const result = await Contact.find();
+    const { _id: owner } = req.user;
+
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const result = await Contact.find({ owner }, '-createdAt -updatedAt', {
+      skip,
+      limit,
+    }).populate('owner', 'name email');
 
     res.status(200).json(result);
   } catch (error) {
@@ -27,9 +38,6 @@ router.get('/:id', isValid, async (req, res, next) => {
     const result = await Contact.findById(id);
 
     if (!result) {
-      // return res.status(404).json({
-      //   message: 'Not found',
-      // });
       throw HttpError(404, 'Not Found');
     }
     res.status(200).json(result);
@@ -48,11 +56,11 @@ router.post('/', async (req, res, next) => {
     missingFields(req, res, { name, email, phone, favorite });
 
     if (error) {
-      // throw HttpError(404, error.message);
       return res.status(404).json(error.message);
     }
 
-    const result = await Contact.create(contactData);
+    const { _id: owner } = req.user;
+    const result = await Contact.create({ ...contactData, owner });
     res.status(201).json(result);
   } catch (error) {
     next(error);

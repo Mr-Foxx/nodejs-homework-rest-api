@@ -8,9 +8,8 @@ const User = require('../../models/user.js');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
-dotenv.config();
 
-// const saveError = require('../../helpers/Save.Error.js');
+dotenv.config();
 
 const { JWT_SECRET } = process.env;
 
@@ -68,9 +67,77 @@ authRouter.post('/login', async (req, res, next) => {
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '23h' });
 
+  // коли логінюсь зберігаю токен в mongodb
+  await User.findByIdAndUpdate(user._id, { token });
+
   res.json({
     token,
   });
+});
+
+authRouter.get('/current', async (req, res, next) => {
+  try {
+    const { authorization = '' } = req.headers;
+    const [bearer, token] = authorization.split(' ');
+
+    if (bearer !== 'Bearer') {
+      return res.status(401).json({ error: 'Unauthorized1111' });
+    }
+
+    try {
+      const { id } = jwt.verify(token, JWT_SECRET);
+
+      const user = await User.findById(id);
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized2222' });
+      }
+
+      const { name, email } = user;
+
+      res.json({
+        name,
+        email,
+      });
+    } catch (error) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/logout', async (req, res, next) => {
+  try {
+    const { authorization = '' } = req.headers;
+    const [bearer, token] = authorization.split(' ');
+
+    if (bearer !== 'Bearer') {
+      return res.status(401).json({ error: 'Unauthorized1111' });
+    }
+
+    try {
+      const { id } = jwt.verify(token, JWT_SECRET);
+
+      const user = await User.findById(id);
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized2222' });
+      }
+
+      const { _id } = user;
+      await User.findByIdAndUpdate(_id, { token: '' });
+      // const { _id } = req.user;
+
+      res.json({
+        message: 'Logout ssucess',
+      });
+    } catch (error) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = authRouter;
