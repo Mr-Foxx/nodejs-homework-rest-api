@@ -8,6 +8,7 @@ const User = require('../../models/user.js');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
+const registrationError = require('../../helpers/registrationError.js');
 
 dotenv.config();
 
@@ -32,13 +33,14 @@ authRouter.post('/register', async (req, res, next) => {
       email: newUser.email,
     });
   } catch (err) {
-    if (err.code === 11000 && err.name === 'MongoServerError') {
-      err.status = 409;
-      err.message = 'Email in use';
-    } else {
-      err.status = 500;
-    }
-    return res.status(err.status).json(err.message);
+    // if (err.code === 11000 && err.name === 'MongoServerError') {
+    //   err.status = 409;
+    //   err.message = 'Email in use';
+    // } else {
+    //   err.status = 500;
+    // }
+    // return res.status(err.status).json(err.message);
+    registrationError(err, res);
   }
 });
 
