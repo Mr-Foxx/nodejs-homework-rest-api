@@ -9,6 +9,11 @@ const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const registrationError = require('../../helpers/registrationError.js');
+const gravatar = require('gravatar');
+
+const upload = require('../../helpers/upload.js');
+const jimp = require('jimp');
+const path = require('path');
 
 dotenv.config();
 
@@ -26,6 +31,9 @@ authRouter.post('/register', async (req, res, next) => {
     return res.status(400).json(error.message);
   }
 
+  const avatarURL = gravatar.url(email);
+  userData.avatarURL = avatarURL;
+
   try {
     const newUser = await User.create(userData);
     res.status(201).json({
@@ -33,13 +41,6 @@ authRouter.post('/register', async (req, res, next) => {
       email: newUser.email,
     });
   } catch (err) {
-    // if (err.code === 11000 && err.name === 'MongoServerError') {
-    //   err.status = 409;
-    //   err.message = 'Email in use';
-    // } else {
-    //   err.status = 500;
-    // }
-    // return res.status(err.status).json(err.message);
     registrationError(err, res);
   }
 });
@@ -139,6 +140,34 @@ authRouter.post('/logout', async (req, res, next) => {
     }
   } catch (error) {
     next(error);
+  }
+});
+
+authRouter.patch('/avatars', upload.single('avatar'), async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const avatar = await jimp.read(req.file.path);
+    await avatar.cover(250, 250);
+
+    const avatarName = `avatar_${user._id}${path.extname(
+      req.file.originalname
+    )}`;
+    const avatarPath = path.join('public', 'avatars', avatarName);
+    await avatar.writeAsync(avatarPath);
+
+    user.avatarURL = `/avatars/${avatarName}`;
+    await user.save();
+
+    res.status(200).json({
+      avatarURL: user.avatarURL,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

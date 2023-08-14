@@ -10,6 +10,11 @@ const {
   contactUpdateFavoriteSchema,
 } = require('../../schemas/contact-schemas.js');
 const { authenticate } = require('../../helpers/autenticate.js');
+const upload = require('../../helpers/upload.js');
+const fs = require('fs/promises');
+const path = require('path');
+
+const avatarPath = path.resolve('public', 'avatars');
 
 router.use(authenticate);
 
@@ -47,7 +52,7 @@ router.get('/:id', isValid, async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', upload.single('avatar'), async (req, res, next) => {
   try {
     const { name, email, phone, favorite } = req.body;
     const contactData = { name, email, phone, favorite };
@@ -60,7 +65,15 @@ router.post('/', async (req, res, next) => {
     }
 
     const { _id: owner } = req.user;
-    const result = await Contact.create({ ...contactData, owner });
+
+    const { path: oldPath, filename } = req.file;
+    const newPath = path.join(avatarPath, filename);
+    await fs.rename(oldPath, newPath);
+
+    const avatar = path.join('avatar', filename);
+    // 'public',
+
+    const result = await Contact.create({ ...contactData, avatar, owner });
     res.status(201).json(result);
   } catch (error) {
     next(error);
