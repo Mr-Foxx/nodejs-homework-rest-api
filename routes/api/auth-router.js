@@ -1,8 +1,12 @@
 const express = require('express');
+const { nanoid } = require('nanoid');
 
 const authRouter = express.Router();
 
-const { userSingupSchema } = require('../../schemas/user-schema.js');
+const {
+  userSingupSchema,
+  userEmailSchema,
+} = require('../../schemas/user-schema.js');
 
 const User = require('../../models/user.js');
 const bcrypt = require('bcryptjs');
@@ -14,18 +18,22 @@ const gravatar = require('gravatar');
 const upload = require('../../helpers/upload.js');
 const jimp = require('jimp');
 const path = require('path');
+const { sendEmail } = require('../../helpers/sendEmail.js');
 
 dotenv.config();
 
-const { JWT_SECRET } = process.env;
+const { JWT_SECRET, BASE_URL } = process.env;
 
 authRouter.post('/register', async (req, res, next) => {
   const { name, email, password } = req.body;
   const userData = { name, email, password };
   const { error } = userSingupSchema.validate(userData);
 
+  const verificationCode = nanoid();
+
   const hashPassword = await bcrypt.hash(password, 10);
   userData.password = hashPassword;
+  userData.verificationCode = verificationCode;
 
   if (error) {
     return res.status(400).json(error.message);
@@ -36,6 +44,15 @@ authRouter.post('/register', async (req, res, next) => {
 
   try {
     const newUser = await User.create(userData);
+
+    const verifyEmail = {
+      to: email,
+      subject: 'Verify email',
+      html: `<a href="${BASE_URL}/api/users/verify/${verificationCode}" target="_blank">Click to verify email</a>`,
+    };
+
+    await sendEmail(verifyEmail);
+
     res.status(201).json({
       name: newUser.name,
       email: newUser.email,
@@ -43,6 +60,79 @@ authRouter.post('/register', async (req, res, next) => {
   } catch (err) {
     registrationError(err, res);
   }
+});
+
+authRouter.get('/verify/:verificationCode', async (req, res, next) => {
+  const { verificationCode } = req.params;
+
+  try {
+    const user = await User.findOne({ verificationCode });
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found',
+      });
+    }
+
+    if (!user.verificationCode) {
+      return res.status(400).json({
+        message: 'Verification code has already been used',
+      });
+    }
+
+    await User.findByIdAndUpdate(user._id, {
+      verify: true,
+      verificationCode: '',
+    });
+
+    res.status(200).json({
+      message: 'Verification successful',
+    });
+  } catch (error) {
+    console.error('Error verifying user:', error);
+    res.status(500).json({
+      message: 'Internal server error',
+    });
+  }
+});
+
+authRouter.post('/verify', async (req, res, next) => {
+  const { email } = req.body;
+  const userData = { email };
+  const { error } = userEmailSchema.validate(userData);
+
+  console.log('UKR_NET_EMAIL:', process.env.UKR_NET_EMAIL);
+  console.log('UKR_NET_PASSWORD:', process.env.UKR_NET_PASSWORD);
+
+  const user = await User.findOne({ email });
+
+  if (error) {
+    return res.status(400).json(error.message);
+  }
+
+  if (!user) {
+    return res.status(404).json({
+      message: 'Email not found',
+    });
+  }
+
+  if (user.verify) {
+    return res.status(400).json({
+      message: 'Verification has already been passed',
+    });
+  }
+
+  const verifyEmail = {
+    to: email,
+    subject: 'Verify email',
+    html: `<a href="${BASE_URL}/api/users/verify/${user.verificationCode}" target="_blank">Click to verify email</a>`,
+  };
+
+  await sendEmail(verifyEmail);
+
+  res.status(200).json({
+    message: 'Verification email sent',
+  });
 });
 
 authRouter.post('/login', async (req, res, next) => {
@@ -53,6 +143,12 @@ authRouter.post('/login', async (req, res, next) => {
   if (!user) {
     return res.status(401).json({
       message: 'Email or password is wrong',
+    });
+  }
+
+  if (!user.verify) {
+    return res.status(401).json({
+      message: 'Email not varify',
     });
   }
 
