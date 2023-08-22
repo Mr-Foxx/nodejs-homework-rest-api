@@ -83,6 +83,7 @@ authRouter.get('/verify/:verificationCode', async (req, res, next) => {
     await User.findByIdAndUpdate(user._id, {
       verify: true,
       verificationCode: '',
+      verificationToken: null,
     });
 
     res.status(200).json({
