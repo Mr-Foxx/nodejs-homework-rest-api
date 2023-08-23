@@ -62,11 +62,11 @@ authRouter.post('/register', async (req, res, next) => {
   }
 });
 
-authRouter.get('/verify/:verificationCode', async (req, res, next) => {
-  const { verificationCode } = req.params;
+authRouter.get('/verify/:verificationToken', async (req, res, next) => {
+  const { verificationToken } = req.params;
 
   try {
-    const user = await User.findOne({ verificationCode });
+    const user = await User.findOne({ verificationToken });
 
     if (!user) {
       return res.status(404).json({
@@ -74,7 +74,7 @@ authRouter.get('/verify/:verificationCode', async (req, res, next) => {
       });
     }
 
-    if (!user.verificationCode) {
+    if (!user.verificationToken) {
       return res.status(400).json({
         message: 'Verification code has already been used',
       });
@@ -82,7 +82,6 @@ authRouter.get('/verify/:verificationCode', async (req, res, next) => {
 
     await User.findByIdAndUpdate(user._id, {
       verify: true,
-      verificationCode: '',
       verificationToken: null,
     });
 
