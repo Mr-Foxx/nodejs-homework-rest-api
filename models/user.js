@@ -20,7 +20,7 @@ const userSchema = Schema(
     password: {
       type: String,
       required: [true, 'Set password for use'],
-      minlenth: 6,
+      minlength: 6, // Замість minlenth
     },
     subscription: {
       type: String,
@@ -32,6 +32,14 @@ const userSchema = Schema(
     },
     token: {
       type: String,
+    },
+    verify: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: {
+      type: String,
+      // required: [true, 'Verify token is required'],
     },
   },
   { versionKey: false, timestamps: true }

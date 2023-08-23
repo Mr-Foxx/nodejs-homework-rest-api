@@ -12,4 +12,8 @@ const userSinginSchema = Joi.object({
   password: Joi.string().min(6).required(),
 });
 
-module.exports = { userSinginSchema, userSingupSchema };
+const userEmailSchema = Joi.object({
+  email: Joi.string().pattern(emailRegexp).required(),
+});
+
+module.exports = { userSinginSchema, userSingupSchema, userEmailSchema };
